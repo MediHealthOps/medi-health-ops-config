@@ -1,7 +1,8 @@
 spring:
   application:
     name: api-gateway
-  profiles: dev
+  profiles:
+    active: dev
 
 server:
   port: 8080

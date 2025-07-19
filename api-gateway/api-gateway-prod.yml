@@ -1,7 +1,8 @@
 spring:
   application:
     name: api-gateway
-  profiles: prod
+  profiles:
+    active: prod
 
 server:
   port: 8080
