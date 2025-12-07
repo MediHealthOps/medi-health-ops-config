@@ -4,219 +4,39 @@ server:
 spring:
   application:
     name: api-gateway
-
-  # Spring Cloud Gateway Configuration
   cloud:
     gateway:
-      # Global CORS Configuration (also configured programmatically in CorsConfig)
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOrigins:
-              - "http://localhost:3000"
-              - "http://localhost:4200"
-            allowedMethods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - PATCH
-              - OPTIONS
-            allowedHeaders: "*"
-            allowCredentials: true
-            maxAge: 3600
-
-      # Route Definitions
-      # Pattern: Each microservice gets its own route with specific predicates and filters
       routes:
-        # ============================================
-        # AUTH SERVICE ROUTES
-        # ============================================
+        # Auth Service - public endpoints
         - id: auth-service
-          uri: lb://auth-service  # lb = load balanced via Eureka
+          uri: lb://auth-service
           predicates:
-            - Path=/api/auth/**  # Match all /api/auth/** paths
-          filters:
-            - StripPrefix=0  # Keep full path (don't strip /api)
-            # Circuit Breaker with fallback
-            - name: CircuitBreaker
-              args:
-                name: authServiceCircuitBreaker
-                fallbackUri: forward:/fallback/auth-service
-            # Retry on failures
-            - name: Retry
-              args:
-                retries: 3
-                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
-                methods: GET,POST
-                backoff:
-                  firstBackoff: 100ms
-                  maxBackoff: 500ms
-                  factor: 2
-                  basedOnPreviousValue: false
+            - Path=/api/auth/**
 
-        # ============================================
-        # USER SERVICE ROUTES
-        # ============================================
+        # User Service - protected
         - id: user-service
           uri: lb://user-service
           predicates:
             - Path=/api/users/**
-          filters:
-            - StripPrefix=0
-            - name: CircuitBreaker
-              args:
-                name: userServiceCircuitBreaker
-                fallbackUri: forward:/fallback/user-service
-            - name: Retry
-              args:
-                retries: 3
-                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
-                methods: GET,POST,PUT,DELETE
-                backoff:
-                  firstBackoff: 100ms
-                  maxBackoff: 500ms
-                  factor: 2
 
-        # ============================================
-        # HEALTH CHECK ROUTES (Public - No Auth Required)
-        # ============================================
-        - id: auth-service-health
-          uri: lb://auth-service
+        # Doctor Service - protected (example)
+        - id: doctor-service
+          uri: lb://doctor-service
           predicates:
-            - Path=/api/health
-          filters:
-            - StripPrefix=0
+            - Path=/api/doctors/**
 
-        # ============================================
-        # ACTUATOR ROUTES (Monitoring)
-        # ============================================
-        - id: gateway-actuator
-          uri: http://localhost:8080
+        # Patient Service - protected (example)
+        - id: patient-service
+          uri: lb://patient-service
           predicates:
-            - Path=/actuator/**
-          filters:
-            - StripPrefix=0
+            - Path=/api/patients/**
 
-      # Default Filters - Apply to ALL routes
-      default-filters:
-        # Add response time header
-        - AddResponseHeader=X-Response-Time, ${responseTime}
-        # Add gateway version
-        - AddResponseHeader=X-Gateway-Version, 1.0.0
+jwt:
+  secret: ${JWT_SECRET:my-super-secret-key-for-jwt-token-generation-minimum-256-bits-required-for-hs256-algorithm}
 
-      # Discovery Locator - Automatically create routes from Eureka services
-      # Disabled in favor of explicit route definitions for better control
-      discovery:
-        locator:
-          enabled: false  # Use explicit routes instead
-          lower-case-service-id: true
-
-# Eureka Client Configuration
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
-    register-with-eureka: true
-    fetch-registry: true
-    registry-fetch-interval-seconds: 30
   instance:
     prefer-ip-address: true
-    lease-renewal-interval-in-seconds: 30
-    lease-expiration-duration-in-seconds: 90
-    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
-    metadata-map:
-      zone: primary
-      version: 1.0.0
-
-# JWT Configuration (must match auth-service)
-jwt:
-  secret: ${JWT_SECRET:my-super-secret-key-for-jwt-token-generation-minimum-256-bits-required-for-hs256-algorithm}
-
-# Resilience4j Circuit Breaker Configuration
-resilience4j:
-  circuitbreaker:
-    configs:
-      default:
-        # Circuit Breaker Pattern Configuration
-        slidingWindowSize: 10  # Number of calls to calculate error rate
-        permittedNumberOfCallsInHalfOpenState: 3  # Test calls when half-open
-        waitDurationInOpenState: 10s  # Wait before trying again
-        failureRateThreshold: 50  # Open circuit if 50% calls fail
-        slowCallRateThreshold: 50  # Consider slow calls as failures
-        slowCallDurationThreshold: 2s  # Calls slower than 2s are "slow"
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-        registerHealthIndicator: true  # Expose circuit breaker health
-    instances:
-      authServiceCircuitBreaker:
-        baseConfig: default
-      userServiceCircuitBreaker:
-        baseConfig: default
-
-  # TimeLimiter Configuration (timeout for circuit breaker)
-  timelimiter:
-    configs:
-      default:
-        timeoutDuration: 5s  # Max time to wait for response
-    instances:
-      authServiceCircuitBreaker:
-        baseConfig: default
-      userServiceCircuitBreaker:
-        baseConfig: default
-
-# Management & Monitoring
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus,gateway,circuitbreakers
-      base-path: /actuator
-  endpoint:
-    health:
-      show-details: always  # Show detailed health info
-      probes:
-        enabled: true
-    gateway:
-      enabled: true  # Enable gateway actuator endpoints
-  health:
-    circuitbreakers:
-      enabled: true  # Show circuit breaker health
-    livenessstate:
-      enabled: true
-    readinessstate:
-      enabled: true
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true  # Histogram for latency metrics
-  info:
-    env:
-      enabled: true
-
-# Logging Configuration
-logging:
-  level:
-    root: INFO
-    com.hm.api.gateway: DEBUG
-    org.springframework.cloud.gateway: DEBUG
-    io.github.resilience4j: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: logs/api-gateway.log
-    max-size: 10MB
-    max-history: 30
-
-# Application Info
-info:
-  app:
-    name: ${spring.application.name}
-    description: API Gateway for MediHealthOps
-    version: 1.0.0
-    encoding: UTF-8
-    java:
-      version: 17
