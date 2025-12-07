@@ -6,30 +6,28 @@ spring:
     name: api-gateway
   cloud:
     gateway:
-      routes:
-        # Auth Service - public endpoints
-        - id: auth-service
-          uri: lb://auth-service
-          predicates:
-            - Path=/api/auth/**
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/auth/**
 
-        # User Service - protected
-        - id: user-service
-          uri: lb://user-service
-          predicates:
-            - Path=/api/users/**
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/users/**
 
-        # Doctor Service - protected (example)
-        - id: doctor-service
-          uri: lb://doctor-service
-          predicates:
-            - Path=/api/doctors/**
+            - id: doctor-service
+              uri: lb://doctor-service
+              predicates:
+                - Path=/api/doctors/**
 
-        # Patient Service - protected (example)
-        - id: patient-service
-          uri: lb://patient-service
-          predicates:
-            - Path=/api/patients/**
+            - id: patient-service
+              uri: lb://patient-service
+              predicates:
+                - Path=/api/patients/**
 
 jwt:
   secret: ${JWT_SECRET:my-super-secret-key-for-jwt-token-generation-minimum-256-bits-required-for-hs256-algorithm}
